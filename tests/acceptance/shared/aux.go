@@ -1,6 +1,9 @@
 package shared
 
 import (
+	"bufio"
+    "encoding/base64"
+    "io"
 	"bytes"
 	"fmt"
 	"os"
@@ -84,6 +87,19 @@ func PrintFileContents(f ...string) error {
 		fmt.Println(string(content) + "\n")
 	}
 
+	return nil
+}
+
+func PrintBase64Encoded(filepath string) error {
+    file, err := os.Open(filepath)
+	if err != nil {
+		return err
+	}
+    reader := bufio.NewReader(file)
+    content, _ := io.ReadAll(reader)
+    encoded := base64.StdEncoding.EncodeToString(content)
+    
+    fmt.Println(encoded)
 	return nil
 }
 

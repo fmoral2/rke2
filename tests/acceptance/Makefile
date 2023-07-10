@@ -12,7 +12,9 @@ test-run:
       -v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/rke2/tests/acceptance/modules/config/.ssh/aws_key.pem \
        rke2-automated-${TAGNAME} sh -c 'cd ./tests/acceptance/entrypoint; \
                                 if [ -n "${TESTDIR}" ]; then \
-                                    if [ "${TESTDIR}" = "upgradecluster" ]; then \
+									if [ "${TESTDIR}" = "mixedoscluster" ]; then \
+                                    	go test -timeout=45m -v ./mixedoscluster/...; \
+                                    elif [ "${TESTDIR}" = "upgradecluster" ]; then \
                                         if [ "${TESTTAG}" = "upgradesuc" ]; then \
                                             go test -timeout=45m -v -tags=upgradesuc ./upgradecluster/... -upgradeVersion "${UPGRADEVERSION}"; \
                                         elif [ "${TESTTAG}" = "upgrademanual" ]; then \
@@ -61,6 +63,10 @@ remove-tf-state:
 .PHONY: test-create
 test-create:
 	@go test -timeout=45m -v ./entrypoint/createcluster/...
+
+.PHONY: test-create
+test-create-mixedos:
+	@go test -timeout=45m -v ./entrypoint/mixesoscluster/...
 
 
 .PHONY: test-upgrade-suc

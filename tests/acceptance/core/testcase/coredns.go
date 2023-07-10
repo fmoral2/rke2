@@ -11,7 +11,7 @@ import (
 
 func TestCoredns(deployWorkload bool) {
 	if deployWorkload {
-		_, err := shared.ManageWorkload("create", "dnsutils.yaml")
+		_, err := shared.ManageWorkload("apply", "dnsutils.yaml")
 		Expect(err).NotTo(HaveOccurred(),
 			"dnsutils manifest not deployed", err)
 	}

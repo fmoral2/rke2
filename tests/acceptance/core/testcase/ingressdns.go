@@ -15,7 +15,7 @@ var Nslookup = "kubernetes.default.svc.cluster.local"
 func TestIngress(deployWorkload bool) {
 	var ingressIps []string
 	if deployWorkload {
-		_, err := shared.ManageWorkload("create", "ingress.yaml")
+		_, err := shared.ManageWorkload("apply", "ingress.yaml")
 		Expect(err).NotTo(HaveOccurred(), "Ingress manifest not deployed")
 	}
 
@@ -50,7 +50,7 @@ func TestIngress(deployWorkload bool) {
 
 func TestDnsAccess(deployWorkload bool) {
 	if deployWorkload {
-		_, err := shared.ManageWorkload("create", "dnsutils.yaml")
+		_, err := shared.ManageWorkload("apply", "dnsutils.yaml")
 		Expect(err).NotTo(HaveOccurred(),
 			"dnsutils manifest not deployed", err)
 	}
