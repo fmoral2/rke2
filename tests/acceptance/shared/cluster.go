@@ -10,12 +10,6 @@ import (
 	"time"
 )
 
-const (
-	Ready = "Ready"
-	Running = "Running"
-	Completed = "Completed"
-)
-
 var (
 	KubeConfigFile string
 	AwsUser        string
@@ -42,17 +36,20 @@ type Pod struct {
 }
 
 // ManageWorkload applies or deletes a workload based on the action: apply or delete.
-func ManageWorkload(action, workloads string) (string, error) {
+func ManageWorkload(action string, workloads ...string) (string, error) {
 	if action != "apply" && action != "delete" {
 		return "", fmt.Errorf("invalid action: %s. Must be 'apply' or 'delete'", action)
 	}
 	
-	listOfWorkloads := strings.Split(workloads, ",")
 	var res string
 	var err error
 
 	resourceDir := BasePath() + "/acceptance/workloads/"
-	for _, workload := range listOfWorkloads {
+	files, err := os.ReadDir(resourceDir)
+	for _, workload := range workloads {
+		if !fileExists(files, workload) {
+			return "", fmt.Errorf("workload %s not found in %s", workload, resourceDir)
+		}
 		filename := filepath.Join(resourceDir, workload)
 		if action == "apply" {
 			err = applyWorkload(workload, filename)
@@ -70,7 +67,16 @@ func ManageWorkload(action, workloads string) (string, error) {
 	}
 
 	return res, err
-	
+}
+
+// fileExists Checks if a file exists in a directory
+func fileExists(files []os.DirEntry, workload string) bool {
+	for _, file := range files {
+		if file.Name() == workload {
+			return true
+		}
+	}
+	return false
 }
 
 // applyWorkload applies a workload to the cluster.
@@ -203,21 +209,21 @@ func FetchNodeExternalIP() []string {
 	return nodeExternalIPs
 }
 
-// InstallSonobuoyMixedOS Installs sonobuoy for mixed OS (linux server + windows agent) nodes validaion.
-func InstallSonobuoyMixedOS() error{
-	scriptsDir := BasePath() + `/acceptance/modules/install/mixedos_sonobuoy.sh`
+// InstallSonobuoyMixedOS Runs mixedos_sonobuoy.sh script, installs sonobuoy for mixed OS cluster
+func InstallSonobuoyMixedOS(version string) error{
+	scriptsDir := BasePath() + "/acceptance/modules/install/mixedos_sonobuoy.sh"
 	err := os.Chmod(scriptsDir, 0755)
 	if err != nil {
 		return fmt.Errorf("failed to change script permissions: %v", err)
 	}
 
-	cmd := exec.Command("/bin/sh", scriptsDir)
+	cmd := exec.Command("/bin/sh", scriptsDir, version)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to execute script: %v\nOutput: %s", err, output)
 	}
 
-	return nil
+	return err
 }
 
 // RestartCluster restarts the rke2 service on each node given by external IP.

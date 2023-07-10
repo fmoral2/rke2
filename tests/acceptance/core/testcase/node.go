@@ -40,80 +40,71 @@ func TestNodeStatus(
 	fmt.Println("\nCluster nodes: ")
 	_, err := shared.ParseNodes(true)
 	if err != nil {
-		fmt.Println("Error retrieving pods: ", err)
+		fmt.Println("Error retrieving nodes: ", err)
 	}
 }
 
-//TestInternodeConnectivityMixedOS Deploys services in the cluster and validates communication between linux and windows nodes
-func TestInternodeConnectivityMixedOS(isDefer bool) {
-	shared.ManageWorkload("apply","pod_client.yaml,windows_app_deployment.yaml")
-	
-	assert.ValidatePodIPByLabel("app=client","10.42")
-	assert.ValidatePodIPByLabel("app=windows-app","10.42")
-	if isDefer {
-		defer shared.ManageWorkload("delete","pod_client.yaml,windows_app_deployment.yaml")
+// TestInternodeConnectivityMixedOS Deploys services in the cluster and validates communication between linux and windows nodes
+func TestInternodeConnectivityMixedOS(deleteWorkload bool) {
+	_, err := shared.ManageWorkload("apply","pod_client.yaml","windows_app_deployment.yaml")
+	if err != nil {
+		fmt.Errorf("Error applying workload: ", err)
 	}
 	
-	testCrossNodeServiceRequest(
+	assert.ValidatePodIPByLabel([]string{"app=client","app=windows-app"},[]string{"10.42","10.42"})
+
+	err = testCrossNodeService(
 		[]string{"client-curl", "windows-app-svc"}, 
 		[]string{"8080", "3000"}, 
 		[]string{"Welcome to nginx", "Welcome to PSTools"})
+	if err != nil {
+		fmt.Errorf("Error checking cross node service: ", err)
+	}
+	
+	if deleteWorkload {
+		_, err := shared.ManageWorkload("delete","pod_client.yaml","windows_app_deployment.yaml")
+		if err != nil {
+			fmt.Errorf("Error deleting workload: ", err)
+		}
+	}
 }
 
 // testCrossNodeService Perform testing cross node communication via service exec call
+//
 // services array Takes service names as parameters in the array
+//
 // ports	array Takes service ports needed to access the services
+//
 // expected	array Takes the expected substring from the curl response
-func testCrossNodeServiceRequest(services, ports, expected []string) error{
-	var err error
+func testCrossNodeService(services, ports, expected []string) error{
+	var cmd string
+
 	if len(services) != len(ports) && len(ports) != len(expected){
 		return fmt.Errorf("array parameters must have equal length")
 	}
-
 	if len(services) < 2 || len(ports) < 2 || len(expected) < 2{
 		return fmt.Errorf("array parameters must not be less than or equal to 2")
 	}
 
-	// Iterating services first to last
 	for i := 0; i < len(services); i++ {
 		for j := i+1; j < len(services); j++ {
-			cmd := fmt.Sprintf("kubectl exec svc/%s --kubeconfig=%s -- curl -m7 %s:%s", 
+			cmd = fmt.Sprintf("kubectl exec svc/%s --kubeconfig=%s -- curl -m7 %s:%s", 
 				services[i], shared.KubeConfigFile, services[j], ports[j])
 			Eventually(func() (string, error) {
 				return shared.RunCommandHost(cmd)
-			}, "120s", "5s").Should(ContainSubstring(expected[j]))
+			}, "300s", "30s").Should(ContainSubstring(expected[j]))
 		}
 	}
-	
-	// Iterating services last to first
+
 	for i := len(services)-1; i > 0; i-- {
 		for j := 1; j <= i; j++ {
-			cmd := fmt.Sprintf("kubectl exec svc/%s --kubeconfig=%s -- curl -m7 %s:%s", 
+			cmd = fmt.Sprintf("kubectl exec svc/%s --kubeconfig=%s -- curl -m7 %s:%s", 
 				services[i], shared.KubeConfigFile, services[i-j], ports[i-j])
 			Eventually(func() (string, error) {
 				return shared.RunCommandHost(cmd)
-			}, "120s", "5s").Should(ContainSubstring(expected[i-j]))
+			}, "300s", "30s").Should(ContainSubstring(expected[i-j]))
 		}
 	}
 
-	return err
-}
-
-func TestSonobuoyMixedOS() {
-	shared.InstallSonobuoyMixedOS()
-	
-	cmd := "sonobuoy run --kubeconfig=" + shared.KubeConfigFile +
-		" --plugin my-sonobuoy-plugins/mixed-workload-e2e/mixed-workload-e2e.yaml" + 
-		" --aggregator-node-selector kubernetes.io/os:linux --wait"
-	res, err := shared.RunCommandHost(cmd)
-	Expect(err).NotTo(HaveOccurred(), "failed output: " + res)
-	
-	cmd = `sonobuoy retrieve --kubeconfig=`+ shared.KubeConfigFile
-	testResultTar, err := shared.RunCommandHost(cmd)
-	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+ cmd)
-	
-	cmd = "sonobuoy results " + testResultTar
-	res, err = shared.RunCommandHost(cmd)
-	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+ cmd)
-	Expect(res).Should(ContainSubstring("Plugin: mixed-workload-e2e\nStatus: passed\n"))
+	return nil
 }

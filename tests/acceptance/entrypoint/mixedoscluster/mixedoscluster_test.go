@@ -31,11 +31,11 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Validates internode connectivity over the vxlan tunnel", func() {
-		testcase.TestInternodeConnectivityMixedOS(true)
+		testcase.TestInternodeConnectivityMixedOS(false)
 	})
 
 	It("Validates cluster by running sonobuoy mixed OS plugin", func() {
-		testcase.TestSonobuoyMixedOS()
+		testcase.ExecuteSonobuoyMixedOS("", false)
 	})
 })
 

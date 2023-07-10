@@ -28,7 +28,7 @@ func TestUpgradeClusterSUC(version string) error {
 	assert.CheckComponentCmdHost(
 		getPodsSystemUpgrade+shared.KubeConfigFile,
 		"system-upgrade-controller",
-		shared.Running,
+		"Running",
 	)
 	Expect(err).NotTo(HaveOccurred())
 
