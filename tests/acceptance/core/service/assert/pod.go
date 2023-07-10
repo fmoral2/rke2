@@ -10,6 +10,8 @@ import (
 	"github.com/onsi/gomega/types"
 )
 
+const statusCompleted = "Completed"
+
 type PodAssertFunc func(g Gomega, pod shared.Pod)
 
 // PodAssertRestart custom assertion func that asserts that pods are not restarting with no reason
@@ -50,17 +52,17 @@ func checkReadyFields() types.GomegaMatcher {
 	}, BeTrue())
 }
 
-// PodAssertStatus custom assertion that asserts that pod status is completed or in some cases
+// PodAssertStatus custom assertion that asserts that pod status is completed or error in some cases
 // apply pods can have an error status
 func PodAssertStatus() PodAssertFunc {
 	return func(g Gomega, pod shared.Pod) {
 		if strings.Contains(pod.Name, "helm-install") {
-			g.Expect(pod.Status).Should(Equal(shared.Completed), pod.Name)
+			g.Expect(pod.Status).Should(Equal(statusCompleted), pod.Name)
 		} else if strings.Contains(pod.Name, "apply") &&
 			strings.Contains(pod.NameSpace, "system-upgrade") {
 			g.Expect(pod.Status).Should(SatisfyAny(
 				ContainSubstring("Error"),
-				Equal(shared.Completed),
+				Equal(statusCompleted),
 			), pod.Name)
 		} else {
 			g.Expect(pod.Status).Should(Equal("Running"), pod.Name)
@@ -81,10 +83,23 @@ func CheckPodStatusRunning(name, namespace, assert string) {
 	}, "180s", "5s").Should(Succeed())
 }
 
-func ValidatePodIPByLabel(label, ip string) {
-	Eventually(func() string {
-		res, _ := shared.KubectlCommand("host","get",fmt.Sprintf("pods -l %s",label),`-o=jsonpath='{range .items[*]}{.status.podIPs[*].ip}{" "}{end}'`)
-		ips :=  strings.Split(res, " ") //e2e.PodIPsUsingLabel(kubeConfigFile, "app=client")
-		return ips[0]
-	}, "180s", "10s").Should(ContainSubstring(ip), fmt.Sprintf("failed to validate expected: %s on %s", ip, label))
+// ValidatePodIPByLabel validates expected pod IP by label 
+func ValidatePodIPByLabel(labels, expected []string) {
+	Eventually(func() error {
+		for i, label := range labels {
+			if len(labels) > 0 {
+				res, _ := shared.KubectlCommand(
+					"host",
+					"get",
+					fmt.Sprintf("pods -l %s",label),
+					`-o=jsonpath='{range .items[*]}{.status.podIPs[*].ip}{" "}{end}'`)
+				ips := strings.Split(res, " ")
+				if strings.Contains(ips[0], expected[i]) {
+					return nil
+				}
+			}
+		}
+		return nil
+	}, "120s", "10s").Should(Succeed(), 
+		"failed to validate expected: %s on %s", expected, labels)
 }

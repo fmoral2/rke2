@@ -64,9 +64,9 @@ remove-tf-state:
 test-create:
 	@go test -timeout=45m -v ./entrypoint/createcluster/...
 
-.PHONY: test-create
+.PHONY: test-create-mixedos
 test-create-mixedos:
-	@go test -timeout=45m -v ./entrypoint/mixesoscluster/...
+	@go test -timeout=45m -v ./entrypoint/mixedoscluster/...
 
 
 .PHONY: test-upgrade-suc

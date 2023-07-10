@@ -90,6 +90,7 @@ func PrintFileContents(f ...string) error {
 	return nil
 }
 
+// PrintBase64Encoded prints the base64 encoded contents of the file.
 func PrintBase64Encoded(filepath string) error {
     file, err := os.Open(filepath)
 	if err != nil {

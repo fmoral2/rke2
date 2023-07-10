@@ -102,13 +102,13 @@ func NewCluster(g GinkgoTInterface) (*Cluster, error) {
 	shared.AccessKey = terraform.GetVariableAsStringFromVarFile(g, varDir, "access_key")
 	shared.KubeConfigFile = terraform.Output(g, terraformOptions, "kubeconfig")
 	return &Cluster{
-		Status:     "cluster created",
-		ServerIPs:  ServerIPs,
-		AgentIPs:   AgentIPs,
-		WinAgentIPs: WinAgentIPs,
-		NumServers: NumServers,
-		NumAgents:  NumAgents,
-		NumWinAgents: NumWinAgents,
+		Status:			"cluster created",
+		ServerIPs:		ServerIPs,
+		AgentIPs:		AgentIPs,
+		WinAgentIPs:	WinAgentIPs,
+		NumServers:		NumServers,
+		NumAgents:		NumAgents,
+		NumWinAgents:	NumWinAgents,
 	}, nil
 }
 

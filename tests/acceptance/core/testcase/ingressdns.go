@@ -8,9 +8,9 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var Running = "Running"
-var ExecDnsUtils = "kubectl exec -n auto-dns -t dnsutils --kubeconfig="
-var Nslookup = "kubernetes.default.svc.cluster.local"
+const Running = "Running"
+const ExecDnsUtils = "kubectl exec -n auto-dns -t dnsutils --kubeconfig="
+const Nslookup = "kubernetes.default.svc.cluster.local"
 
 func TestIngress(deployWorkload bool) {
 	var ingressIps []string

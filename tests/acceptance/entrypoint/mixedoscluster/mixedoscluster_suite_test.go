@@ -12,7 +12,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+var sonobuoyVersion string
+
 func TestMain(m *testing.M) {
+	flag.StringVar(&sonobuoyVersion, "sonobuoyVersion", "", "Sonobuoy Version that will be executed on the cluster")
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 	os.Exit(m.Run())

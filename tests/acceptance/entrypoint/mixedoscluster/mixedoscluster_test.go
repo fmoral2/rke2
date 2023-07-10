@@ -5,6 +5,7 @@ import (
 
 	"github.com/rancher/rke2/tests/acceptance/core/service/assert"
 	"github.com/rancher/rke2/tests/acceptance/core/testcase"
+	"github.com/rancher/rke2/tests/acceptance/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 )
@@ -31,11 +32,12 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Validates internode connectivity over the vxlan tunnel", func() {
-		testcase.TestInternodeConnectivityMixedOS(true)
+		testcase.TestInternodeConnectivityMixedOS()
 	})
 
 	It("Validates cluster by running sonobuoy mixed OS plugin", func() {
-		testcase.TestSonobuoyMixedOS()
+		testcase.TestSonobuoyMixedOS(sonobuoyVersion, true)
+		defer shared.ManageWorkload("delete","pod_client.yaml","windows_app_deployment.yaml")
 	})
 })
 
