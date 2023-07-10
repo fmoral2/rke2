@@ -16,23 +16,23 @@ func TestPodStatus(
 	podAssertReady assert.PodAssertFunc,
 	podAssertStatus assert.PodAssertFunc,
 ) {
-	fmt.Printf("\nFetching pod status\n")
-
+	fmt.Printf("\nChecking pod status")
 	Eventually(func(g Gomega) {
 		pods, err := shared.ParsePods(false)
 		g.Expect(err).NotTo(HaveOccurred())
 
 		for _, pod := range pods {
+			fmt.Printf(".")
 			if strings.Contains(pod.Name, "helm-install") {
-				g.Expect(pod.Status).Should(Equal("Completed"), pod.Name)
+				g.Expect(pod.Status).Should(Equal(shared.Completed), pod.Name)
 			} else if strings.Contains(pod.Name, "apply") &&
 				strings.Contains(pod.NameSpace, "system-upgrade") {
 				g.Expect(pod.Status).Should(SatisfyAny(
 					ContainSubstring("Error"),
-					Equal("Completed"),
+					Equal(shared.Completed),
 				), pod.Name)
 			} else {
-				g.Expect(pod.Status).Should(Equal(Running), pod.Name)
+				g.Expect(pod.Status).Should(Equal(shared.Running), pod.Name)
 				if podAssertRestarts != nil {
 					podAssertRestarts(g, pod)
 				}
@@ -45,6 +45,12 @@ func TestPodStatus(
 			}
 		}
 	}, "600s", "3s").Should(Succeed())
+
+	fmt.Println("\n\nCluster pods: ")
+	_, err := shared.ParsePods(true)
+	if err != nil {
+		fmt.Println("Error retrieving nodes: ", err)
+	}
 }
 
 func testCrossNodeServiceRequest(services, ports, expected []string) error {

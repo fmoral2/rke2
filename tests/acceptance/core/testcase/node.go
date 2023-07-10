@@ -11,15 +11,15 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// TestNodeStatus test the status of the nodes in the cluster using 2 custom assert functions
+//TestNodeStatus test the status of the nodes in the cluster using 2 custom assert functions
 func TestNodeStatus(
 	nodeAssertReadyStatus assert.NodeAssertFunc,
 	nodeAssertVersion assert.NodeAssertFunc,
 ) {
 	cluster := factory.GetCluster(GinkgoT())
-	fmt.Printf("\nFetching node status\n")
 
-	expectedNodeCount := cluster.NumServers + cluster.NumAgents
+	fmt.Printf("\nChecking node status")
+	expectedNodeCount := cluster.NumServers + cluster.NumAgents + cluster.NumWinAgents
 	Eventually(func(g Gomega) {
 		nodes, err := shared.ParseNodes(false)
 		g.Expect(err).NotTo(HaveOccurred())
@@ -27,6 +27,7 @@ func TestNodeStatus(
 			"Number of nodes should match the spec")
 
 		for _, node := range nodes {
+			fmt.Printf(".")
 			if nodeAssertReadyStatus != nil {
 				nodeAssertReadyStatus(g, node)
 			}
@@ -35,4 +36,84 @@ func TestNodeStatus(
 			}
 		}
 	}, "800s", "3s").Should(Succeed())
+
+	fmt.Println("\nCluster nodes: ")
+	_, err := shared.ParseNodes(true)
+	if err != nil {
+		fmt.Println("Error retrieving pods: ", err)
+	}
+}
+
+//TestInternodeConnectivityMixedOS Deploys services in the cluster and validates communication between linux and windows nodes
+func TestInternodeConnectivityMixedOS(isDefer bool) {
+	shared.ManageWorkload("apply","pod_client.yaml,windows_app_deployment.yaml")
+	
+	assert.ValidatePodIPByLabel("app=client","10.42")
+	assert.ValidatePodIPByLabel("app=windows-app","10.42")
+	if isDefer {
+		defer shared.ManageWorkload("delete","pod_client.yaml,windows_app_deployment.yaml")
+	}
+	
+	testCrossNodeServiceRequest(
+		[]string{"client-curl", "windows-app-svc"}, 
+		[]string{"8080", "3000"}, 
+		[]string{"Welcome to nginx", "Welcome to PSTools"})
+}
+
+// testCrossNodeService Perform testing cross node communication via service exec call
+// services array Takes service names as parameters in the array
+// ports	array Takes service ports needed to access the services
+// expected	array Takes the expected substring from the curl response
+func testCrossNodeServiceRequest(services, ports, expected []string) error{
+	var err error
+	if len(services) != len(ports) && len(ports) != len(expected){
+		return fmt.Errorf("array parameters must have equal length")
+	}
+
+	if len(services) < 2 || len(ports) < 2 || len(expected) < 2{
+		return fmt.Errorf("array parameters must not be less than or equal to 2")
+	}
+
+	// Iterating services first to last
+	for i := 0; i < len(services); i++ {
+		for j := i+1; j < len(services); j++ {
+			cmd := fmt.Sprintf("kubectl exec svc/%s --kubeconfig=%s -- curl -m7 %s:%s", 
+				services[i], shared.KubeConfigFile, services[j], ports[j])
+			Eventually(func() (string, error) {
+				return shared.RunCommandHost(cmd)
+			}, "120s", "5s").Should(ContainSubstring(expected[j]))
+		}
+	}
+	
+	// Iterating services last to first
+	for i := len(services)-1; i > 0; i-- {
+		for j := 1; j <= i; j++ {
+			cmd := fmt.Sprintf("kubectl exec svc/%s --kubeconfig=%s -- curl -m7 %s:%s", 
+				services[i], shared.KubeConfigFile, services[i-j], ports[i-j])
+			Eventually(func() (string, error) {
+				return shared.RunCommandHost(cmd)
+			}, "120s", "5s").Should(ContainSubstring(expected[i-j]))
+		}
+	}
+
+	return err
+}
+
+func TestSonobuoyMixedOS() {
+	shared.InstallSonobuoyMixedOS()
+	
+	cmd := "sonobuoy run --kubeconfig=" + shared.KubeConfigFile +
+		" --plugin my-sonobuoy-plugins/mixed-workload-e2e/mixed-workload-e2e.yaml" + 
+		" --aggregator-node-selector kubernetes.io/os:linux --wait"
+	res, err := shared.RunCommandHost(cmd)
+	Expect(err).NotTo(HaveOccurred(), "failed output: " + res)
+	
+	cmd = `sonobuoy retrieve --kubeconfig=`+ shared.KubeConfigFile
+	testResultTar, err := shared.RunCommandHost(cmd)
+	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+ cmd)
+	
+	cmd = "sonobuoy results " + testResultTar
+	res, err = shared.RunCommandHost(cmd)
+	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+ cmd)
+	Expect(res).Should(ContainSubstring("Plugin: mixed-workload-e2e\nStatus: passed\n"))
 }

@@ -12,8 +12,6 @@ import (
 
 type PodAssertFunc func(g Gomega, pod shared.Pod)
 
-var completedAssert = "Completed"
-
 // PodAssertRestart custom assertion func that asserts that pods are not restarting with no reason
 // controller, scheduler, helm-install pods can be restarted occasionally when cluster started if only once
 func PodAssertRestart() PodAssertFunc {
@@ -57,12 +55,12 @@ func checkReadyFields() types.GomegaMatcher {
 func PodAssertStatus() PodAssertFunc {
 	return func(g Gomega, pod shared.Pod) {
 		if strings.Contains(pod.Name, "helm-install") {
-			g.Expect(pod.Status).Should(Equal(completedAssert), pod.Name)
+			g.Expect(pod.Status).Should(Equal(shared.Completed), pod.Name)
 		} else if strings.Contains(pod.Name, "apply") &&
 			strings.Contains(pod.NameSpace, "system-upgrade") {
 			g.Expect(pod.Status).Should(SatisfyAny(
 				ContainSubstring("Error"),
-				Equal(completedAssert),
+				Equal(shared.Completed),
 			), pod.Name)
 		} else {
 			g.Expect(pod.Status).Should(Equal("Running"), pod.Name)
@@ -81,4 +79,12 @@ func CheckPodStatusRunning(name, namespace, assert string) {
 		}
 		g.Expect(res).Should(ContainSubstring(assert))
 	}, "180s", "5s").Should(Succeed())
+}
+
+func ValidatePodIPByLabel(label, ip string) {
+	Eventually(func() string {
+		res, _ := shared.KubectlCommand("host","get",fmt.Sprintf("pods -l %s",label),`-o=jsonpath='{range .items[*]}{.status.podIPs[*].ip}{" "}{end}'`)
+		ips :=  strings.Split(res, " ") //e2e.PodIPsUsingLabel(kubeConfigFile, "app=client")
+		return ips[0]
+	}, "180s", "10s").Should(ContainSubstring(ip), fmt.Sprintf("failed to validate expected: %s on %s", ip, label))
 }

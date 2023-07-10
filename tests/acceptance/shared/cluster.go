@@ -4,9 +4,16 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+)
+
+const (
+	Ready = "Ready"
+	Running = "Running"
+	Completed = "Completed"
 )
 
 var (
@@ -34,47 +41,57 @@ type Pod struct {
 	Node      string
 }
 
-// ManageWorkload creates or deletes a workload based on the action: create or delete.
-func ManageWorkload(action, workload string) (string, error) {
-	if action != "create" && action != "delete" {
-		return "", fmt.Errorf("invalid action: %s. Must be 'create' or 'delete'", action)
+// ManageWorkload applies or deletes a workload based on the action: apply or delete.
+func ManageWorkload(action, workloads string) (string, error) {
+	if action != "apply" && action != "delete" {
+		return "", fmt.Errorf("invalid action: %s. Must be 'apply' or 'delete'", action)
 	}
+	
+	listOfWorkloads := strings.Split(workloads, ",")
 	var res string
 	var err error
 
 	resourceDir := BasePath() + "/acceptance/workloads/"
-
-	files, err := os.ReadDir(resourceDir)
-	if err != nil {
-		err = fmt.Errorf("%s : Unable to read resource manifest file for %s", err, workload)
-		return "", err
-	}
-
-	for _, f := range files {
-		filename := filepath.Join(resourceDir, f.Name())
-		if strings.TrimSpace(f.Name()) == workload {
-			if action == "create" {
-				res, err = createWorkload(workload, filename)
-				if err != nil {
-					return "", fmt.Errorf("failed to create workload %s: %s", workload, err)
-				}
-			} else {
-				err = deleteWorkload(workload, filename)
-				if err != nil {
-					return "", fmt.Errorf("failed to delete workload %s: %s", workload, err)
-				}
+	for _, workload := range listOfWorkloads {
+		filename := filepath.Join(resourceDir, workload)
+		if action == "apply" {
+			err = applyWorkload(workload, filename)
+			if err != nil {
+				return "", fmt.Errorf("failed to apply workload %s: %s", workload, err)
 			}
-			return res, err
+		} else if action == "delete" {
+			err = deleteWorkload(workload, filename)
+			if err != nil {
+				return "", fmt.Errorf("failed to delete workload %s: %s", workload, err)
+			}
+		} else {
+			return "", fmt.Errorf("workload %s not found in %s", workload, resourceDir)
 		}
 	}
 
-	return "", fmt.Errorf("workload %s not found", workload)
+	return res, err
+	
 }
 
-// createWorkload creates a workload.
-func createWorkload(workload, filename string) (string, error) {
-	fmt.Println("\nDeploying", workload)
-	return RunCommandHost("kubectl apply -f " + filename + " --kubeconfig=" + KubeConfigFile)
+// applyWorkload applies a workload to the cluster.
+func applyWorkload(workload, filename string) (error) {
+	fmt.Println("\nApplying ", workload)
+	cmd := "kubectl apply -f " + filename + " --kubeconfig=" + KubeConfigFile
+	out, err := RunCommandHost(cmd)
+	if err != nil || out == "" {
+		return fmt.Errorf("failed to run kubectl apply: %v", err)
+	}
+
+	out, err = RunCommandHost("kubectl get all -A --kubeconfig=" + KubeConfigFile)
+	if err != nil {
+		return err
+	}
+	isApplied := strings.Contains(out, workload)
+	if isApplied {
+		return nil
+	}
+	
+	return err
 }
 
 // deleteWorkload deletes a workload and asserts that the workload is deleted.
@@ -93,7 +110,7 @@ func deleteWorkload(workload, filename string) error {
 	for {
 		select {
 		case <-timeout:
-			return errors.New("workload deletion timed out")
+			return errors.New("workload delete timed out")
 		case <-tick:
 			res, err := RunCommandHost("kubectl get all -A --kubeconfig=" + KubeConfigFile)
 			if err != nil {
@@ -184,6 +201,23 @@ func FetchNodeExternalIP() []string {
 	nodeExternalIPs := strings.Split(nodeExternalIP, " ")
 
 	return nodeExternalIPs
+}
+
+// InstallSonobuoyMixedOS Installs sonobuoy for mixed OS (linux server + windows agent) nodes validaion.
+func InstallSonobuoyMixedOS() error{
+	scriptsDir := BasePath() + `/acceptance/modules/install/mixedos_sonobuoy.sh`
+	err := os.Chmod(scriptsDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to change script permissions: %v", err)
+	}
+
+	cmd := exec.Command("/bin/sh", scriptsDir)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to execute script: %v\nOutput: %s", err, output)
+	}
+
+	return nil
 }
 
 // RestartCluster restarts the rke2 service on each node given by external IP.
